@@ -1,2 +1,2 @@
 # door-counter-v3-bot
-Update me
+Discord bot for UPL door counter v3 !!!
