@@ -119,10 +119,10 @@ def format_people_message(data):
 
     if formatted_names:
         return (
-            f"Looks like there are ~{count} people {verb} in the UPL "
+            f"Looks like there are ~{count} people *{verb}* in the UPL "
             f"including: {formatted_names}"
         )
-    return f"Looks like there are ~{count} people {verb} in the UPL!"
+    return f"Looks like there are ~{count} people *{verb}* in the UPL!"
 
 
 async def get_presence_text():
@@ -169,7 +169,7 @@ async def on_ready():
 async def who(interaction: discord.Interaction):
     try:
         if not await is_counter_service_active():
-            await interaction.response.send_message(SERVICE_DOWN_MESSAGE, ephemeral=True)
+            await interaction.response.send_message(SERVICE_DOWN_MESSAGE)
             return
 
         data = read_count_json()
