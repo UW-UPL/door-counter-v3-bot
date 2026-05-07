@@ -7,6 +7,7 @@ from pathlib import Path
 
 import discord
 from discord import app_commands
+from discord.ext import tasks
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -37,6 +38,7 @@ EMPTY_ROOM_MESSAGES = [
     "No signs of life in the UPL at the moment... check back soon!",
 ]
 
+# feel free to add more lol
 VERBS = [
     "programming",
     "coding",
@@ -63,6 +65,7 @@ class PeopleCounterBot(discord.Client):
         self.tree.copy_global_to(guild=guild)
         await self.tree.sync(guild=guild)
         logger.info("Synced slash commands to guild %s", GUILD_ID)
+        update_presence_loop.start()
 
 
 bot = PeopleCounterBot()
@@ -122,6 +125,41 @@ def format_people_message(data):
     return f"Looks like there are ~{count} people {verb} in the UPL!"
 
 
+async def get_presence_text():
+    if not await is_counter_service_active():
+        return "offline"
+    try:
+        data = read_count_json()
+    except Exception:
+        logger.exception("Failed to read count JSON for presence")
+        return "offline"
+
+    count = data.get("count", 0)
+    if not isinstance(count, int):
+        try:
+            count = int(count)
+        except (TypeError, ValueError):
+            count = 0
+
+    if count <= 0:
+        return "empty"
+    return f"~{count} people"
+
+
+@tasks.loop(minutes=1)
+async def update_presence_loop():
+    text = await get_presence_text()
+    try:
+        await bot.change_presence(activity=discord.CustomActivity(name=text))
+    except Exception:
+        logger.exception("Failed to update presence")
+
+
+@update_presence_loop.before_loop
+async def _before_update_presence():
+    await bot.wait_until_ready()
+
+
 @bot.event
 async def on_ready():
     logger.info("Logged in as %s", bot.user)
@@ -141,7 +179,7 @@ async def who(interaction: discord.Interaction):
 
     except json.JSONDecodeError:
         logger.exception("Failed to parse count JSON")
-
+        # all should be ephermeral for now
         await interaction.response.send_message(
             "The people counter is updating right now. Try again in a second.",
             ephemeral=True,
