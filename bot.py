@@ -47,6 +47,23 @@ VERBS = [
     "larping",
     "toiling",
     "hobnobbing",
+    "thinking about infra",
+]
+
+SOLO_VERBS = [
+    "feeling lonely",
+    "flying solo",
+    "fighting their demons",
+    "being a sigma lone wolf",
+]
+
+DUO_VERBS = [
+    "pair-programming",
+]
+
+CROWDED_VERBS = [
+    "packing the place",
+    "throwing a party",
 ]
 
 if not DISCORD_TOKEN:
@@ -114,8 +131,23 @@ def format_people_message(data):
     if count <= 0:
         return random.choice(EMPTY_ROOM_MESSAGES)
 
-    verb = random.choice(VERBS)
-    formatted_names = format_names(names)
+    cleaned_names = [str(name).strip() for name in names if str(name).strip()]
+    formatted_names = format_names(cleaned_names)
+    all_named = len(cleaned_names) == count
+
+    if count == 1:
+        verb = random.choice(SOLO_VERBS)
+        subject = formatted_names if formatted_names else "1 person"
+        return f"Looks like {subject} is in the UPL *{verb}*."
+
+    if count == 2 and all_named:
+        verb = random.choice(DUO_VERBS)
+        return f"Looks like {formatted_names} are in the UPL *{verb}*."
+
+    if count >= 10:
+        verb = random.choice(CROWDED_VERBS)
+    else:
+        verb = random.choice(VERBS)
 
     if formatted_names:
         return (
