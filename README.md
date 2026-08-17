@@ -12,6 +12,10 @@ The Discord half of [Door Counter v3](https://github.com/UW-UPL/door-counter-v3)
 
 **`/who`** tells you who and how many people are in the UPL right now. Responses come with a randomized activity: people may be *programming*, *toiling*, *hobnobbing*, or if it's just one person, *being a sigma lone wolf*. The verb lists are at the top of `bot.py`, feel free to add more lol.
 
+<p align="center">
+  <img src="docs/who_example.png" alt="/who response in Discord" width="600">
+</p>
+
 The bot also sets its Discord status to the live count every minute (~N people / empty / offline), so most of the time you don't even have to ask. If the counter service dies, `/who` says so and tells you to poke someone.
 
 ## Running it
