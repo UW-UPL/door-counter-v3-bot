@@ -3,8 +3,10 @@ import json
 import logging
 import os
 import random
+import time
 from pathlib import Path
 
+import aiohttp
 import discord
 from discord import app_commands
 from discord.ext import tasks
@@ -26,6 +28,16 @@ COUNT_JSON_PATH = os.getenv(
     "/home/upl/door-counter-v3/data/count.json",
 )
 COUNTER_SERVICE = os.getenv("COUNTER_SERVICE", "door-counter.service")
+WHO_JSON_URL = os.getenv(
+    "WHO_JSON_URL",
+    "https://raw.githubusercontent.com/UW-UPL/History/master/who/who.json",
+)
+SPIRIT_COUNT = 15
+SPIRIT_CACHE_PATH = os.getenv(
+    "SPIRIT_CACHE_PATH",
+    str(Path(__file__).with_name("spirits.json")),
+)
+SPIRIT_REFRESH_SECONDS = 12 * 60 * 60
 
 SERVICE_DOWN_MESSAGE = (
     "Looks like the door counter script isn't running right now. "
@@ -66,6 +78,9 @@ CROWDED_VERBS = [
     "throwing a party",
 ]
 
+SPIRITS = []
+_last_spirit_refresh = None
+
 if not DISCORD_TOKEN:
     raise RuntimeError("Missing DISCORD_TOKEN in .env")
 
@@ -83,6 +98,8 @@ class PeopleCounterBot(discord.Client):
         await self.tree.sync(guild=guild)
         logger.info("Synced slash commands to guild %s", GUILD_ID)
         update_presence_loop.start()
+        load_spirit_cache()
+        refresh_spirits_loop.start()
 
 
 bot = PeopleCounterBot()
@@ -132,13 +149,30 @@ def format_people_message(data):
         return random.choice(EMPTY_ROOM_MESSAGES)
 
     cleaned_names = [str(name).strip() for name in names if str(name).strip()]
+    cleaned_names = [
+        "Mowgli"
+        if name.replace(" ", "").lower() in ("lucas", "lucas2") and random.random() < 1 / 15
+        else name
+        for name in cleaned_names
+    ]
     formatted_names = format_names(cleaned_names)
     all_named = len(cleaned_names) == count
+
+    spirit = ""
+    if len(cleaned_names) < count and random.random() < 1 / 20:
+        present = {name.split()[0].lower() for name in cleaned_names}
+        departed = [name for name in SPIRITS if name.split()[0].lower() not in present]
+        if departed:
+            ghost = discord.utils.escape_markdown(random.choice(departed))
+            if cleaned_names:
+                formatted_names = format_names(cleaned_names + [f"*the spirit of {ghost}* 👻"])
+            else:
+                spirit = f"\n*as well as the spirit of {ghost}* 👻"
 
     if count == 1:
         verb = random.choice(SOLO_VERBS)
         subject = formatted_names if formatted_names else "1 person"
-        return f"Looks like {subject} is in the UPL *{verb}*."
+        return f"Looks like {subject} is in the UPL *{verb}*{spirit or '.'}"
 
     if count == 2 and all_named:
         verb = random.choice(DUO_VERBS)
@@ -154,7 +188,7 @@ def format_people_message(data):
             f"Looks like there are ~{count} people *{verb}* in the UPL "
             f"including: {formatted_names}"
         )
-    return f"Looks like there are ~{count} people *{verb}* in the UPL!"
+    return f"Looks like there are ~{count} people *{verb}* in the UPL{spirit or '!'}"
 
 
 async def get_presence_text():
@@ -176,6 +210,77 @@ async def get_presence_text():
     if count <= 0:
         return "empty"
     return f"~{count} people"
+
+
+def load_spirit_cache():
+    try:
+        with Path(SPIRIT_CACHE_PATH).open("r", encoding="utf-8") as file:
+            cached = json.load(file)
+    except FileNotFoundError:
+        return
+    except Exception:
+        logger.exception("Could not read %s", SPIRIT_CACHE_PATH)
+        return
+
+    if isinstance(cached, list):
+        names = [str(name).strip() for name in cached if str(name).strip()]
+        if names:
+            SPIRITS[:] = names[-SPIRIT_COUNT:]
+            logger.info("Loaded %s past members from cache", len(SPIRITS))
+
+
+def save_spirit_cache(names):
+    path = Path(SPIRIT_CACHE_PATH)
+    temporary_path = path.with_suffix(".json.tmp")
+    try:
+        with temporary_path.open("w", encoding="utf-8") as file:
+            json.dump(names, file, indent=2)
+        temporary_path.replace(path)
+    except Exception:
+        logger.exception("Could not write %s", SPIRIT_CACHE_PATH)
+
+
+async def fetch_spirit_names():
+    try:
+        timeout = aiohttp.ClientTimeout(total=15)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(WHO_JSON_URL) as response:
+                response.raise_for_status()
+                data = await response.json(content_type=None)
+    except Exception:
+        logger.exception("Failed to fetch %s", WHO_JSON_URL)
+        return []
+
+    entries = data.get("who") if isinstance(data, dict) else None
+    if not isinstance(entries, list):
+        logger.warning("%s did not contain a member list", WHO_JSON_URL)
+        return []
+
+    names = [
+        str(entry.get("name", "")).strip()
+        for entry in entries
+        if isinstance(entry, dict) and str(entry.get("name", "")).strip()
+    ]
+    if len(names) < SPIRIT_COUNT:
+        logger.warning("Only %s usable names in who.json; keeping current list", len(names))
+        return []
+
+    return names[-SPIRIT_COUNT:]
+
+
+@tasks.loop(minutes=30)
+async def refresh_spirits_loop():
+    global _last_spirit_refresh
+    if _last_spirit_refresh is not None:
+        if time.monotonic() - _last_spirit_refresh < SPIRIT_REFRESH_SECONDS:
+            return
+
+    names = await fetch_spirit_names()
+    if names:
+        SPIRITS[:] = names
+        _last_spirit_refresh = time.monotonic()
+        save_spirit_cache(names)
+        logger.info("Loaded %s past members from who.json", len(SPIRITS))
 
 
 @tasks.loop(minutes=1)
@@ -207,7 +312,10 @@ async def who(interaction: discord.Interaction):
         data = read_count_json()
         message = format_people_message(data)
 
-        await interaction.response.send_message(message)
+        await interaction.response.send_message(
+            message,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
 
     except json.JSONDecodeError:
         logger.exception("Failed to parse count JSON")
