@@ -18,6 +18,9 @@ The Discord half of [Door Counter v3](https://github.com/UW-UPL/door-counter-v3)
 
 The bot also sets its Discord status to the live count every minute (~N people / empty / offline), so most of the time you don't even have to ask. If the counter service dies, `/who` says so and tells you to poke someone.
 
+**`/coord`** tells you if someone has their office hours and if they are present for their office hours. It will figure out the current time,
+and pull from the schedule in the json file. If no one is currently scheduled, it will tell you the next scheduled office hours.
+
 ## Running it
 
 Lives on the same Pi as the counter. It reads `count.json` straight off disk and checks the systemd service before answering.
