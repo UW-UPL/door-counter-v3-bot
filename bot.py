@@ -306,7 +306,7 @@ def get_schedule():
     return office_hours
 
 async def get_current_person():
-    office_hours = get_schedule()
+    office_hours = await asyncio.to_thread(get_schedule)
 
     now = datetime.now(ZoneInfo("America/Chicago"))
 
@@ -381,20 +381,29 @@ async def get_door_status():
     return -1
 
 async def format_coord_message(person):
-    door_status = get_door_status()
+    door_status = await get_door_status()
+    door_is_open = isinstance(door_status, list) and any(
+        isinstance(door, dict) and door.get("status") in {"on", "open"}
+        for door in door_status
+    )
 
     # coord is scheduled
-    if person.status == "current":
-        if door_status.status == "open":
-            return COORD_OPEN_MESSAGE.format(person.person)
-        else:
-            return COORD_CLOSED_MESSAGE.format(person.person)
-    else:
-        if door_status.status == "open":
-            return NO_COORD_OPEN_MESSAGE
-        else:
-            message = NO_COORD_CLOSED_MESSAGE.format(person.person, person.start, person.day)
-            return message
+    if person and person["status"] == "current":
+        template = COORD_OPEN_MESSAGE if door_is_open else COORD_CLOSED_MESSAGE
+        return template.format(coord_name=person["person"])
+
+    if door_is_open:
+        return NO_COORD_OPEN_MESSAGE
+
+    if not person:
+        return "Unfortunately, the UPL is closed and no coords are scheduled right now. :("
+
+    next_datetime = person["datetime"]
+    return NO_COORD_CLOSED_MESSAGE.format(
+        coord_name=person["person"],
+        start=next_datetime.strftime("%I:%M %p").lstrip("0"),
+        day=next_datetime.strftime("%A"),
+    )
 
 @tasks.loop(minutes=30)
 async def refresh_spirits_loop():
@@ -484,8 +493,8 @@ async def coord(interaction: discord.Interaction):
             await interaction.response.send_message(SERVICE_DOWN_MESSAGE)
             return
 
-        data = get_current_person()
-        message = format_coord_message(data)
+        data = await get_current_person()
+        message = await format_coord_message(data)
 
         await interaction.response.send_message(
             message
