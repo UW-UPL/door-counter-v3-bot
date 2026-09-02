@@ -1,8 +1,98 @@
 [
   {
-    "name": "",
-    "day": "",
-    "start": "",
-    "end": ""
+    "name": "Matthew",
+    "day": "Monday",
+    "start": "11:00",
+    "end": "12:00"
+  },
+  {
+    "name": "Lucas",
+    "day": "Monday",
+    "start": "12:00",
+    "end": "14:00"
+  },
+  {
+    "name": "Ben",
+    "day": "Monday",
+    "start": "16:00",
+    "end": "18:00"
+  },
+  {
+    "name": "Mari",
+    "day": "Tuesday",
+    "start": "11:00",
+    "end": "12:00"
+  },
+  {
+    "name": "Leo",
+    "day": "Tuesday",
+    "start": "13:00",
+    "end": "14:00"
+  },
+  {
+    "name": "Gil",
+    "day": "Tuesday",
+    "start": "16:00",
+    "end": "17:00"
+  },
+  {
+    "name": "Matthew",
+    "day": "Wednesday",
+    "start": "11:00",
+    "end": "12:00"
+  },
+  {
+    "name": "Marko",
+    "day": "Wednesday",
+    "start": "13:00",
+    "end": "14:00"
+  },
+  {
+    "name": "George",
+    "day": "Wednesday",
+    "start": "14:00",
+    "end": "16:00"
+  },
+  {
+    "name": "Gil",
+    "day": "Wednesday",
+    "start": "16:00",
+    "end": "17:00"
+  },
+  {
+    "name": "Mari",
+    "day": "Thursday",
+    "start": "11:00",
+    "end": "12:00"
+  },
+  {
+    "name": "Leo",
+    "day": "Thursday",
+    "start": "13:00",
+    "end": "14:00"
+  },
+  {
+    "name": "Dhruv",
+    "day": "Thursday",
+    "start": "14:00",
+    "end": "16:00"
+  },
+  {
+    "name": "Ishan",
+    "day": "Thursday",
+    "start": "16:00",
+    "end": "18:00"
+  },
+  {
+    "name": "Marko",
+    "day": "Friday",
+    "start": "13:00",
+    "end": "14:00"
+  },
+  {
+    "name": "Jiamu",
+    "day": "Friday",
+    "start": "14:00",
+    "end": "16:00"
   }
 ]

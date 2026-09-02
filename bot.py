@@ -54,7 +54,7 @@ EMPTY_ROOM_MESSAGES = [
 
 # no coord is scheduled and the upl is closed
 NO_COORD_CLOSED_MESSAGE = (
-    "Unfortunatly, the UPL is closed and no coords are scheduled right now. :("
+    "Unfortunatly, the UPL is closed and no coords are scheduled right now. :( \nThe next coord scheduled is {coord_name} at {start} on {day}."
 )
 
 # no coord is scheduled, but the upl is open
@@ -381,11 +381,20 @@ async def get_door_status():
     return -1
 
 async def format_coord_message(person):
-    t = 0
+    door_status = get_door_status()
 
-    # see if person returns something
-
-    # see if upl is open
+    # coord is scheduled
+    if person.status == "current":
+        if door_status.status == "open":
+            return COORD_OPEN_MESSAGE.format(person.person)
+        else:
+            return COORD_CLOSED_MESSAGE.format(person.person)
+    else:
+        if door_status.status == "open":
+            return NO_COORD_OPEN_MESSAGE
+        else:
+            message = NO_COORD_CLOSED_MESSAGE.format(person.person, person.start, person.day)
+            return message
 
 @tasks.loop(minutes=30)
 async def refresh_spirits_loop():
