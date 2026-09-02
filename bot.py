@@ -488,48 +488,40 @@ async def who(interaction: discord.Interaction):
 
 @bot.tree.command(name="coord", description="See which Coord has office hours currently.")
 async def coord(interaction: discord.Interaction):
+    await interaction.response.defer(thinking=True)
+
     try:
         if not await is_counter_service_active():
-            await interaction.response.send_message(SERVICE_DOWN_MESSAGE)
+            await interaction.edit_original_response(content=SERVICE_DOWN_MESSAGE)
             return
 
         data = await get_current_person()
         message = await format_coord_message(data)
 
-        await interaction.response.send_message(
-            message
-        )
+        await interaction.edit_original_response(content=message)
 
     except json.JSONDecodeError:
-            logger.exception("Failed to parse count JSON")
-            # all should be ephermeral for now
-            await interaction.response.send_message(
-                "I could not read the coord schedule right now. Try again in a second.",
-                ephemeral=True,
-            )
-    
-    except FileNotFoundError:
-        logger.exception("Count JSON file was not found")
+        logger.exception("Failed to parse coord schedule JSON")
+        await interaction.edit_original_response(
+            content="I could not read the coord schedule right now. Try again in a second."
+        )
 
-        await interaction.response.send_message(
-            "I could not read the coord schedule right now. Please try again later.",
-            ephemeral=True,
+    except FileNotFoundError:
+        logger.exception("Coord schedule JSON file was not found")
+        await interaction.edit_original_response(
+            content="I could not read the coord schedule right now. Please try again later."
         )
 
     except PermissionError:
-        logger.exception("Bot does not have permission to read count JSON")
-
-        await interaction.response.send_message(
-            "I could not read the coord schedule right now. Please try again later.",
-            ephemeral=True,
+        logger.exception("Bot does not have permission to read coord schedule JSON")
+        await interaction.edit_original_response(
+            content="I could not read the coord schedule right now. Please try again later."
         )
 
     except Exception:
-        logger.exception("Unexpected error while reading people counter")
-
-        await interaction.response.send_message(
-            "Something went wrong while checking the coord schedule. Please try again later.",
-            ephemeral=True,
+        logger.exception("Unexpected error while checking the coord schedule")
+        await interaction.edit_original_response(
+            content="Something went wrong while checking the coord schedule. Please try again later."
         )
 
 
