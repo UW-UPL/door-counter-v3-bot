@@ -478,7 +478,7 @@ async def who(interaction: discord.Interaction):
         )
 
 @bot.tree.command(name="coord", description="See which Coord has office hours currently.")
-async def coord(interaction: discord.Integration):
+async def coord(interaction: discord.Interaction):
     try:
         if not await is_counter_service_active():
             await interaction.response.send_message(SERVICE_DOWN_MESSAGE)
