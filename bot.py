@@ -4,7 +4,9 @@ import logging
 import os
 import random
 import time
+from datetime import datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import aiohttp
 import discord
@@ -50,6 +52,26 @@ EMPTY_ROOM_MESSAGES = [
     "No signs of life in the UPL at the moment... check back soon!",
 ]
 
+# no coord is scheduled and the upl is closed
+NO_COORD_CLOSED_MESSAGE = (
+    "Unfortunatly, the UPL is closed and no coords are scheduled right now. :("
+)
+
+# no coord is scheduled, but the upl is open
+NO_COORD_OPEN_MESSAGE = (
+    "No coord is currently scheduled, but the UPL is open! :D"
+)
+
+# coord scheduled, not open
+COORD_CLOSED_MESSAGE = (
+    "Looks like {coord_name} is scheduled, but not in their office hours... check back later!"
+)
+
+# coord scheduled, open
+COORD_OPEN_MESSAGE = (
+    "{coord_name} is currently scheduled, and the UPL is open!"
+)
+
 # feel free to add more lol
 VERBS = [
     "programming",
@@ -77,6 +99,16 @@ CROWDED_VERBS = [
     "packing the place",
     "throwing a party",
 ]
+
+DAYS = {
+    "Monday": 0,
+    "Tuesday": 1,
+    "Wednesday": 2,
+    "Thursday": 3,
+    "Friday": 4,
+    "Saturday": 5,
+    "Sunday": 6,
+}
 
 SPIRITS = []
 _last_spirit_refresh = None
@@ -267,6 +299,93 @@ async def fetch_spirit_names():
 
     return names[-SPIRIT_COUNT:]
 
+def get_schedule():
+    with open("/data/schedule.json", "r") as file:
+        office_hours = json.load(file)
+
+    return office_hours
+
+async def get_current_person():
+    office_hours = get_schedule()
+
+    now = datetime.now(ZoneInfo("America/Chicago"))
+
+    for slot in office_hours:
+        slot_day = DAYS[slot["day"]]
+
+        if now.weekday() != slot_day:
+            continue
+
+        start_time = datetime.strptime(slot["start"], "%H:%M").replace(
+            tzinfo=now.tzinfo
+        ).time()
+        end_time = datetime.strptime(slot["end"], "%H:%M").replace(
+            tzinfo=now.tzinfo
+        ).time()
+
+        if start_time <= now.time() < end_time:
+            return {
+                "status": "current",
+                "person": slot["person"],
+                "time": slot["start"]
+            }
+
+    next_slot = None
+    next_datetime = None
+
+    for slot in office_hours:
+        slot_day = DAYS[slot["day"]]
+        start_time = datetime.strptime(slot["start"], "%H:%M").replace(
+            tzinfo=now.tzinfo
+        ).time()
+
+        days_ahead = (slot_day - now.weekday()) % 7
+
+        slot_datetime = datetime.combine(
+            now.date() + timedelta(days=days_ahead),
+            start_time,
+            tzinfo=now.tzinfo
+        )
+
+        if slot_datetime <= now:
+            slot_datetime += timedelta(days=7)
+
+        if next_datetime is None or slot_datetime < next_datetime:
+            next_datetime = slot_datetime
+            next_slot = slot
+
+    if next_slot:
+        return {
+            "status": "next",
+            "person": next_slot["person"],
+            "datetime": next_datetime
+        }
+
+    return None
+
+async def get_door_status():
+    url = "https://doors.amoses.dev/door-status"
+    timeout = aiohttp.ClientTimeout(total=10)
+
+    try:
+        async with aiohttp.ClientSession(timeout=timeout) as session, session.get(url) as response:
+                response.raise_for_status()
+                return await response.json(content_type=None)
+    except asyncio.TimeoutError:
+        logger.warning("Timed out fetching door status from %s", url)
+    except aiohttp.ClientError:
+        logger.exception("Failed to fetch door status from %s", url)
+    except (json.JSONDecodeError, TypeError):
+        logger.exception("Door status response from %s was not valid JSON", url)
+
+    return -1
+
+async def format_coord_message(person):
+    t = 0
+
+    # see if person returns something
+
+    # see if upl is open
 
 @tasks.loop(minutes=30)
 async def refresh_spirits_loop():
@@ -346,6 +465,52 @@ async def who(interaction: discord.Interaction):
 
         await interaction.response.send_message(
             "Something went wrong while checking the people counter. Please try again later.",
+            ephemeral=True,
+        )
+
+@bot.tree.command(name="coord", description="See which Coord has office hours currently.")
+async def coord(interaction: discord.Integration):
+    try:
+        if not await is_counter_service_active():
+            await interaction.response.send_message(SERVICE_DOWN_MESSAGE)
+            return
+
+        data = get_current_person()
+        message = format_coord_message(data)
+
+        await interaction.response.send_message(
+            message
+        )
+
+    except json.JSONDecodeError:
+            logger.exception("Failed to parse count JSON")
+            # all should be ephermeral for now
+            await interaction.response.send_message(
+                "I could not read the coord schedule right now. Try again in a second.",
+                ephemeral=True,
+            )
+    
+    except FileNotFoundError:
+        logger.exception("Count JSON file was not found")
+
+        await interaction.response.send_message(
+            "I could not read the coord schedule right now. Please try again later.",
+            ephemeral=True,
+        )
+
+    except PermissionError:
+        logger.exception("Bot does not have permission to read count JSON")
+
+        await interaction.response.send_message(
+            "I could not read the coord schedule right now. Please try again later.",
+            ephemeral=True,
+        )
+
+    except Exception:
+        logger.exception("Unexpected error while reading people counter")
+
+        await interaction.response.send_message(
+            "Something went wrong while checking the coord schedule. Please try again later.",
             ephemeral=True,
         )
 
