@@ -126,9 +126,22 @@ class PeopleCounterBot(discord.Client):
         self.tree = app_commands.CommandTree(self)
     async def setup_hook(self):
         guild = discord.Object(id=int(GUILD_ID))
+        expected_commands = {"who", "coord"}
+        registered_commands = {
+            command.name for command in self.tree.get_commands()
+        }
+        missing_commands = expected_commands - registered_commands
+        if missing_commands:
+            missing = ", ".join(sorted(missing_commands))
+            raise RuntimeError(f"Commands missing from local tree: {missing}")
+
         self.tree.copy_global_to(guild=guild)
-        await self.tree.sync(guild=guild)
-        logger.info("Synced slash commands to guild %s", GUILD_ID)
+        synced_commands = await self.tree.sync(guild=guild)
+        logger.info(
+            "Synced slash commands to guild %s: %s",
+            GUILD_ID,
+            ", ".join(command.name for command in synced_commands),
+        )
         update_presence_loop.start()
         load_spirit_cache()
         refresh_spirits_loop.start()
@@ -300,7 +313,7 @@ async def fetch_spirit_names():
     return names[-SPIRIT_COUNT:]
 
 def get_schedule():
-    with open("/data/schedule.json", "r") as file:
+    with open("./data/schedule.json", "r") as file:
         office_hours = json.load(file)
 
     return office_hours
@@ -326,7 +339,7 @@ async def get_current_person():
         if start_time <= now.time() < end_time:
             return {
                 "status": "current",
-                "person": slot["person"],
+                "person": slot["name"],
                 "time": slot["start"]
             }
 
@@ -357,7 +370,7 @@ async def get_current_person():
     if next_slot:
         return {
             "status": "next",
-            "person": next_slot["person"],
+            "person": next_slot["name"],
             "datetime": next_datetime
         }
 
@@ -382,17 +395,14 @@ async def get_door_status():
 
 async def format_coord_message(person):
     door_status = await get_door_status()
-    door_is_open = isinstance(door_status, list) and any(
-        isinstance(door, dict) and door.get("status") in {"on", "open"}
-        for door in door_status
-    )
+
 
     # coord is scheduled
     if person and person["status"] == "current":
-        template = COORD_OPEN_MESSAGE if door_is_open else COORD_CLOSED_MESSAGE
+        template = COORD_OPEN_MESSAGE if door_status["status"] == "open" else COORD_CLOSED_MESSAGE
         return template.format(coord_name=person["person"])
 
-    if door_is_open:
+    if door_status["status"] == "open":
         return NO_COORD_OPEN_MESSAGE
 
     if not person:
