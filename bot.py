@@ -90,7 +90,6 @@ SOLO_VERBS = [
     "flying solo",
     "fighting their demons",
     "being a sigma lone wolf",
-    "",
 ]
 
 DUO_VERBS = [
@@ -397,7 +396,7 @@ async def format_coord_message(person):
     )
 
 async def change_bio(message):
-    bio = message + f"\n\nGitHub: https://github.com/UW-UPL/door-counter-v3-bot"
+    bio = message + f"\n\nGitHub: https://github.com/UW-UPL/door-counter-v3"
     app_info = await bot.application_info()
     await app_info.edit(description=bio)
 
