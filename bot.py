@@ -82,6 +82,7 @@ VERBS = [
     "toiling",
     "hobnobbing",
     "thinking about infra",
+    "being productive",
 ]
 
 SOLO_VERBS = [
@@ -93,6 +94,7 @@ SOLO_VERBS = [
 
 DUO_VERBS = [
     "pair-programming",
+    "being peas in a pod",
 ]
 
 CROWDED_VERBS = [
@@ -234,28 +236,6 @@ def format_people_message(data):
             f"including: {formatted_names}"
         )
     return f"Looks like there are ~{count} people *{verb}* in the UPL{spirit or '!'}"
-
-
-async def get_presence_text():
-    if not await is_counter_service_active():
-        return "offline"
-    try:
-        data = read_count_json()
-    except Exception:
-        logger.exception("Failed to read count JSON for presence")
-        return "offline"
-
-    count = data.get("count", 0)
-    if not isinstance(count, int):
-        try:
-            count = int(count)
-        except (TypeError, ValueError):
-            count = 0
-
-    if count <= 0:
-        return "empty"
-    return f"~{count} people"
-
 
 def load_spirit_cache():
     try:
@@ -415,6 +395,11 @@ async def format_coord_message(person):
         day=next_datetime.strftime("%A"),
     )
 
+async def change_bio(message):
+    bio = message + f"\n\nGitHub: https://github.com/UW-UPL/door-counter-v3"
+    app_info = await bot.application_info()
+    await app_info.edit(description=bio)
+
 @tasks.loop(minutes=30)
 async def refresh_spirits_loop():
     global _last_spirit_refresh
@@ -432,9 +417,28 @@ async def refresh_spirits_loop():
 
 @tasks.loop(minutes=1)
 async def update_presence_loop():
-    text = await get_presence_text()
+    short_text = "offline"
+    long_text = "offline"
+
+    if await is_counter_service_active():
+        try:
+            data = read_count_json()
+        except Exception:
+            logger.exception("Failed to read count JSON for presence")
+        else:
+            count = data.get("count", 0)
+            if not isinstance(count, int):
+                try:
+                    count = int(count)
+                except (TypeError, ValueError):
+                    count = 0
+
+            short_text = f"~{count} people" if count > 0 else "empty"
+            long_text = format_people_message(data)
+
     try:
-        await bot.change_presence(activity=discord.CustomActivity(name=text))
+        await bot.change_presence(activity=discord.CustomActivity(name=short_text))
+        await change_bio(long_text)
     except Exception:
         logger.exception("Failed to update presence")
 
@@ -442,7 +446,6 @@ async def update_presence_loop():
 @update_presence_loop.before_loop
 async def _before_update_presence():
     await bot.wait_until_ready()
-
 
 @bot.event
 async def on_ready():
