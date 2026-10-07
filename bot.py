@@ -112,6 +112,11 @@ DAYS = {
     "Sunday": 6,
 }
 
+def format_people_count(people_count, tilde=False):
+    tilde = "~" if tilde else ""
+    noun = "person" if people_count == 1 else "people"
+    return f"{tilde}{people_count} {noun}"
+
 SPIRITS = []
 _last_spirit_refresh = None
 
@@ -232,10 +237,10 @@ def format_people_message(data):
 
     if formatted_names:
         return (
-            f"Looks like there are ~{count} people *{verb}* in the UPL "
+            f"Looks like there are {format_people_count(count, tilde=True)} *{verb}* in the UPL "
             f"including: {formatted_names}"
         )
-    return f"Looks like there are ~{count} people *{verb}* in the UPL{spirit or '!'}"
+    return f"Looks like there are {format_people_count(count, tilde=True)} *{verb}* in the UPL{spirit or '!'}"
 
 def load_spirit_cache():
     try:
@@ -433,7 +438,7 @@ async def update_presence_loop():
                 except (TypeError, ValueError):
                     count = 0
 
-            short_text = f"~{count} people" if count > 0 else "empty"
+            short_text = format_people_count(count, tilde=True) if count > 0 else "empty"
             long_text = format_people_message(data)
 
     try:
